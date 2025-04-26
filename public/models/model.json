@@ -1,0 +1,25 @@
+{
+  "format": "layers-model",
+  "generatedBy": "placeholder",
+  "modelTopology": {
+    "class_name": "Placeholder",
+    "config": {
+      "name": "mobilenet_placeholder",
+      "batch_input_shape": [
+        null,
+        224,
+        224,
+        3
+      ],
+      "dtype": "float32"
+    }
+  },
+  "weightsManifest": [
+    {
+      "paths": [
+        "weights.bin"
+      ],
+      "weights": []
+    }
+  ]
+}

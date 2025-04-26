@@ -191,3 +191,213 @@ export async function optimizeImageForModel(file: File): Promise<ImageData> {
     throw error;
   }
 }
+
+/**
+ * Compresses and resizes an image file to make it suitable for model processing
+ */
+export async function compressImage(file: File, maxWidth = 800, quality = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    try {
+      // Create image element to load the file
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        // Create canvas for resizing
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions while maintaining aspect ratio
+        if (width > maxWidth) {
+          const ratio = maxWidth / width;
+          width = maxWidth;
+          height = Math.round(height * ratio);
+        }
+        
+        // Set canvas dimensions
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw resized image to canvas
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to blob with compression
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              URL.revokeObjectURL(url);
+              reject(new Error('Failed to compress image'));
+              return;
+            }
+            
+            // Create compressed file
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            
+            // Clean up
+            URL.revokeObjectURL(url);
+            
+            // Log compression results
+            console.log(`Image compressed: ${(file.size / 1024).toFixed(2)}KB → ${(compressedFile.size / 1024).toFixed(2)}KB`);
+            
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image for compression'));
+      };
+      
+      img.src = url;
+    } catch (error) {
+      reject(new Error(`Image compression failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+    }
+  });
+}
+
+/**
+ * Validates that an image is suitable for processing by the model
+ */
+export function validateImage(file: File): { valid: boolean; error?: string } {
+  // Check file type
+  if (!file.type.match(/^image\/(jpeg|png|webp|bmp)$/i)) {
+    return {
+      valid: false,
+      error: 'Invalid file type. Please upload a JPEG, PNG, WEBP, or BMP image.'
+    };
+  }
+  
+  // Check file size (max 25MB)
+  if (file.size > 25 * 1024 * 1024) {
+    return {
+      valid: false,
+      error: 'Image is too large. Maximum size is 25MB.'
+    };
+  }
+  
+  return { valid: true };
+}
+
+/**
+ * Checks if the image has enough content to be analyzed 
+ * (not just blank or too dark/light)
+ */
+export async function checkImageContent(file: File): Promise<{ valid: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const minDimension = Math.min(img.width, img.height);
+        
+        // Image too small
+        if (minDimension < 50) {
+          URL.revokeObjectURL(url);
+          resolve({
+            valid: false,
+            error: 'Image is too small. Please provide a larger image.'
+          });
+          return;
+        }
+        
+        // Check if image has enough content
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          resolve({ valid: true }); // Fail safe, assume valid
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Calculate average brightness and contrast
+        let sum = 0;
+        let pixelCount = data.length / 4;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          // Convert RGB to brightness (0-255)
+          const brightness = Math.round((data[i] + data[i + 1] + data[i + 2]) / 3);
+          sum += brightness;
+        }
+        
+        const avgBrightness = sum / pixelCount;
+        
+        // If too dark or too bright
+        if (avgBrightness < 20) {
+          URL.revokeObjectURL(url);
+          resolve({
+            valid: false,
+            error: 'Image is too dark. Please provide a better lit image.'
+          });
+          return;
+        }
+        
+        if (avgBrightness > 235) {
+          URL.revokeObjectURL(url);
+          resolve({
+            valid: false,
+            error: 'Image is too bright or mostly blank. Please provide an image with clearer plant content.'
+          });
+          return;
+        }
+        
+        URL.revokeObjectURL(url);
+        resolve({ valid: true });
+      } catch (error) {
+        URL.revokeObjectURL(url);
+        resolve({ valid: true }); // Fail safe, assume valid
+      }
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({
+        valid: false,
+        error: 'Failed to load image for content analysis.'
+      });
+    };
+    
+    img.src = url;
+  });
+}
+
+/**
+ * Full image processing pipeline for model input
+ */
+export async function processImageForModel(file: File): Promise<File> {
+  // Validate image
+  const validation = validateImage(file);
+  if (!validation.valid) {
+    throw new Error(validation.error || 'Invalid image');
+  }
+  
+  // Check image content
+  const contentCheck = await checkImageContent(file);
+  if (!contentCheck.valid) {
+    throw new Error(contentCheck.error || 'Invalid image content');
+  }
+  
+  // Compress and resize
+  return compressImage(file);
+}

@@ -1,32 +1,42 @@
-import { TempoInit } from "../components/tempo-init";
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import Script from "next/script";
+"use client";
+
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  preload: true,
-  fallback: ["system-ui", "sans-serif"],
-});
-
-export const metadata: Metadata = {
-  title: "Tempo - Modern SaaS Starter",
-  description: "A modern full-stack starter template powered by Next.js",
-};
+import { useEffect } from "react";
+import { ThemeProvider } from "next-themes";
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  // Register service worker for offline capabilities
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(function(registration) {
+            console.log('Service Worker registered with scope:', registration.scope);
+          })
+          .catch(function(error) {
+            console.log('Service Worker registration failed:', error);
+          });
+      });
+    }
+  }, []);
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <Script src="https://api.tempo.new/proxy-asset?url=https://storage.googleapis.com/tempo-public-assets/error-handling.js" />
-      <body className={inter.className}>
-        {children}
-        <TempoInit />
+    <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Crop Disease Diagnosis</title>
+        <meta name="description" content="AI-powered plant disease detection and treatment recommendations" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="theme-color" content="#FFFFFF" />
+      </head>
+      <body>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
