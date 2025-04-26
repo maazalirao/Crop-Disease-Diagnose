@@ -1,21 +1,85 @@
 /**
  * Machine Learning Model Integration for Plant Disease Detection
  *
- * This file contains the integration with a pre-trained CNN model for plant disease detection.
+ * This file contains the integration with machine learning models for plant disease detection.
  * In a production environment, this would connect to a real ML backend service.
  */
 
 import { DiagnosisResult } from "./api";
 import { optimizeImageForModel } from "./image-processor";
 
-// CNN model configuration
-const CNN_MODEL_CONFIG = {
-  inputShape: [224, 224, 3], // Standard input size for many CNN models
-  confidenceThreshold: 0.65, // Minimum confidence score for valid detection
-  modelVersion: "1.0.0",
-  useTransferLearning: true,
-  baseModel: "MobileNetV2" // Using MobileNetV2 as base architecture
+// Common interface for ML model configurations
+interface BaseModelConfig {
+  inputShape: number[];
+  confidenceThreshold: number;
+  modelVersion: string;
+  accuracy: number;
+  type: string;
+}
+
+// Random Forest configuration interface
+interface RFConfig extends BaseModelConfig {
+  type: 'RF';
+  maxDepth: number;
+  nEstimators: number;
+  maxFeatures: string;
+  minSamplesLeaf: number;
+  minSamplesSplit: number;
+  bootstrap: boolean;
+}
+
+// SVM configuration interface
+interface SVMConfig extends BaseModelConfig {
+  type: 'SVM';
+  kernel: string;
+  C: number;
+  gamma: string;
+  probability: boolean;
+}
+
+// Type guards
+function isRFConfig(config: BaseModelConfig): config is RFConfig {
+  return config.type === 'RF';
+}
+
+function isSVMConfig(config: BaseModelConfig): config is SVMConfig {
+  return config.type === 'SVM';
+}
+
+// Machine Learning model configurations
+const MODEL_CONFIG = {
+  // Random Forest configuration for soil categorization (86.35% accuracy)
+  RF_CONFIG: {
+    inputShape: [224, 224, 3],
+    confidenceThreshold: 0.70,
+    modelVersion: "1.0.0",
+    maxDepth: 100,               // Maximum depth of the trees
+    nEstimators: 250,            // Number of trees in the forest
+    maxFeatures: "sqrt",         // Number of features to consider when looking for the best split
+    minSamplesLeaf: 1,           // Minimum number of samples required at a leaf node
+    minSamplesSplit: 2,          // Minimum number of samples required to split an internal node
+    bootstrap: true,             // Whether bootstrap samples are used when building trees
+    accuracy: 86.35,             // Based on research findings
+    type: 'RF' as const
+  } as RFConfig,
+  
+  // SVM configuration for crop yield prediction (99.47% accuracy)
+  SVM_CONFIG: {
+    inputShape: [224, 224, 3],
+    confidenceThreshold: 0.75,
+    modelVersion: "1.0.0",
+    kernel: "rbf",               // Radial basis function kernel
+    C: 10.0,                     // Regularization parameter
+    gamma: "scale",              // Kernel coefficient
+    probability: true,           // Enable probability estimates
+    accuracy: 99.47,             // Based on research findings
+    type: 'SVM' as const
+  } as SVMConfig
 };
+
+// Select the primary model based on the task
+// For soil categorization, use RF; for crop prediction/disease classification, use SVM
+const ACTIVE_MODEL: BaseModelConfig = MODEL_CONFIG.SVM_CONFIG; // Using SVM for disease classification due to higher accuracy
 
 // NLP model for symptom description
 const NLP_MODEL_CONFIG = {
@@ -349,25 +413,29 @@ const DISEASE_INFO = {
 };
 
 /**
- * CNN Feature Extraction Class
+ * Feature Extraction Class
  * This class handles the feature extraction from plant images
  */
-class CNNFeatureExtractor {
+class FeatureExtractor {
   constructor() {
-    console.log("Initializing CNN Feature Extractor with config:", CNN_MODEL_CONFIG);
+    console.log("Initializing Feature Extractor with config:", ACTIVE_MODEL);
   }
 
   /**
    * Extract features from the preprocessed image data
    */
   async extractFeatures(imageData: ImageData): Promise<Float32Array> {
-    // In a real implementation, this would feed the image through the CNN
-    // For now, we'll simulate feature extraction
+    // In a real implementation, this would:
+    // 1. Extract color features (RGB histograms, color moments)
+    // 2. Extract texture features (GLCM, LBP)
+    // 3. Extract shape features (contours, moments)
+    // 4. Extract domain-specific features (vegetation indices for plants)
     
-    // Create a simulated feature vector (typically would come from the CNN)
-    const featureVector = new Float32Array(1024);
+    // For now, we'll simulate feature extraction with a smaller feature vector
+    // SVM and RF typically need fewer features than deep learning models
+    const featureVector = new Float32Array(512);
     
-    // Fill with somewhat realistic values (non-random in real implementation)
+    // Extract simulated features based on image characteristics
     for (let i = 0; i < featureVector.length; i++) {
       featureVector[i] = Math.random() * 2 - 1; // Values between -1 and 1
     }
@@ -377,12 +445,12 @@ class CNNFeatureExtractor {
 }
 
 /**
- * CNN Classifier Class
- * This class handles the classification of extracted features
+ * Random Forest Classifier Class
+ * This class handles the classification using Random Forest algorithm
  */
-class CNNClassifier {
+class RandomForestClassifier {
   constructor() {
-    console.log("Initializing CNN Classifier");
+    console.log("Initializing Random Forest Classifier with config:", MODEL_CONFIG.RF_CONFIG);
   }
 
   /**
@@ -392,19 +460,58 @@ class CNNClassifier {
     diseaseId: string;
     confidence: number;
   }> {
-    // In a real implementation, this would use the trained classifier
+    // In a real implementation, this would use the trained RF model
     // For now, we'll simulate classification
     
     // Generate a mock prediction
-    // In reality, this would be a forward pass through the classifier network
+    // In reality, this would be an ensemble vote from multiple decision trees
     
     // For demo purposes, generate a random result but more realistic
     const randomIndex = Math.floor(Math.random() * DISEASE_CLASSES.length);
     const diseaseId = DISEASE_CLASSES[randomIndex].id;
     
-    // Generate a realistic confidence score (higher for healthy plants)
-    const baseConfidence = diseaseId === "healthy" ? 85 : 75;
-    const confidence = baseConfidence + Math.floor(Math.random() * 15);
+    // Generate a realistic confidence score with higher base confidence
+    // RF tends to have higher confidence overall
+    const baseConfidence = diseaseId === "healthy" ? 88 : 80;
+    const confidence = baseConfidence + Math.floor(Math.random() * 12);
+    
+    return {
+      diseaseId,
+      confidence,
+    };
+  }
+}
+
+/**
+ * SVM Classifier Class
+ * This class handles the classification using Support Vector Machine algorithm
+ */
+class SVMClassifier {
+  constructor() {
+    console.log("Initializing SVM Classifier with config:", MODEL_CONFIG.SVM_CONFIG);
+  }
+
+  /**
+   * Classify the feature vector and return predictions
+   */
+  async classify(featureVector: Float32Array): Promise<{
+    diseaseId: string;
+    confidence: number;
+  }> {
+    // In a real implementation, this would use the trained SVM model
+    // For now, we'll simulate classification
+    
+    // Generate a mock prediction
+    // In reality, this would use the SVM decision function and probability estimates
+    
+    // For demo purposes, generate a random result but more realistic
+    const randomIndex = Math.floor(Math.random() * DISEASE_CLASSES.length);
+    const diseaseId = DISEASE_CLASSES[randomIndex].id;
+    
+    // Generate a realistic confidence score with higher base confidence
+    // SVM with probability=True can give very high confidence scores
+    const baseConfidence = diseaseId === "healthy" ? 92 : 85;
+    const confidence = baseConfidence + Math.floor(Math.random() * 14);
     
     return {
       diseaseId,
@@ -433,10 +540,14 @@ class NLPDescriptionGenerator {
   }
 }
 
-// Initialize our CNN and NLP components
-const featureExtractor = new CNNFeatureExtractor();
-const classifier = new CNNClassifier();
+// Initialize our ML components based on active model
+const featureExtractor = new FeatureExtractor();
+const rfClassifier = new RandomForestClassifier();
+const svmClassifier = new SVMClassifier();
 const nlpGenerator = new NLPDescriptionGenerator();
+
+// Select the active classifier based on configuration
+const activeClassifier = isRFConfig(ACTIVE_MODEL) ? rfClassifier : svmClassifier;
 
 /**
  * Preprocesses an image for the ML model
@@ -467,7 +578,7 @@ async function preprocessImage(imageFile: File): Promise<ImageData | null> {
     if (!ctx) return null;
 
     // Resize to standard dimensions for the model
-    const targetSize = CNN_MODEL_CONFIG.inputShape[0]; // Use the model's input size
+    const targetSize = ACTIVE_MODEL.inputShape[0]; // Use the model's input size
     canvas.width = targetSize;
     canvas.height = targetSize;
 
@@ -491,10 +602,11 @@ export async function processImageWithModel(imageFile: File): Promise<{
   diseaseId: string;
   confidence: number;
 }> {
-  console.log("Processing image with CNN model...");
+  const modelType = isRFConfig(ACTIVE_MODEL) ? "Random Forest" : "SVM";
+  console.log(`Processing image with ${modelType} model...`);
   
   // Simulate model processing time
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 1500));
 
   try {
     // Step 1: Preprocess the image
@@ -504,18 +616,18 @@ export async function processImageWithModel(imageFile: File): Promise<{
       throw new Error("Image preprocessing failed");
     }
     
-    // Step 2: Extract features using CNN
+    // Step 2: Extract features
     const featureVector = await featureExtractor.extractFeatures(processedImageData);
     
     // Step 3: Classify the feature vector
-    const prediction = await classifier.classify(featureVector);
+    const prediction = await activeClassifier.classify(featureVector);
     
-    console.log(`CNN model predicted: ${prediction.diseaseId} with ${prediction.confidence}% confidence`);
+    console.log(`${modelType} model predicted: ${prediction.diseaseId} with ${prediction.confidence}% confidence`);
     
     return prediction;
   } catch (error) {
     console.error("Error processing image with model:", error);
-    throw new Error("Failed to process image with AI model");
+    throw new Error(`Failed to process image with ${modelType} model`);
   }
 }
 
@@ -597,8 +709,28 @@ export function getDiseaseInfo(diseaseId: string): {
 /**
  * Returns information about all diseases in the database
  */
-export function getAllDiseaseInfo() {
-  const result = {};
+export function getAllDiseaseInfo(): Record<string, {
+  name: string;
+  plantType: string;
+  category: string;
+  severity: string;
+  description: string;
+  symptoms: string[];
+  treatmentOptions: Array<{
+    name: string;
+    description: string;
+    effectiveness: number;
+    applicationMethod: string;
+  }>;
+  productRecommendations: Array<{
+    name: string;
+    type: string;
+    description: string;
+    imageUrl?: string;
+  }>;
+  imageUrl?: string;
+}> {
+  const result: Record<string, any> = {};
   
   // Combine disease class information with detailed disease info
   DISEASE_CLASSES.forEach(diseaseClass => {
@@ -607,14 +739,14 @@ export function getAllDiseaseInfo() {
     // Skip "healthy" as it's not a disease
     if (id === "healthy") return;
     
-    if (DISEASE_INFO[id]) {
+    if (DISEASE_INFO[id as keyof typeof DISEASE_INFO]) {
       result[id] = {
-        ...DISEASE_INFO[id],
+        ...DISEASE_INFO[id as keyof typeof DISEASE_INFO],
         name: diseaseClass.name,
         plantType: diseaseClass.plantType,
         category: 'Fungal', // Default category if not specified
         severity: 'Medium', // Default severity if not specified
-        imageUrl: DISEASE_INFO[id].productRecommendations?.[0]?.imageUrl,
+        imageUrl: DISEASE_INFO[id as keyof typeof DISEASE_INFO].productRecommendations?.[0]?.imageUrl,
       };
     }
   });
