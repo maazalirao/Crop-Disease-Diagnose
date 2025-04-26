@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
-import { Upload, Camera, X, Check, Loader2 } from "lucide-react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Upload, Camera, X, Check, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "./ui/card";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 interface ImageUploadSectionProps {
   onImageSubmit?: (image: File) => Promise<void>;
@@ -27,9 +28,22 @@ const ImageUploadSection = ({
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [cameraFacing, setCameraFacing] = useState<"environment" | "user">("environment");
+  const [activeTab, setActiveTab] = useState<string>("upload");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Clean up resources when component unmounts
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   // Handle file selection
   const handleFileChange = useCallback((file: File | null) => {
@@ -54,12 +68,15 @@ const ImageUploadSection = ({
     }
 
     setSelectedImage(file);
+    
+    // Clean up previous preview URL if it exists
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
-
-    // Clean up the object URL when component unmounts
-    return () => URL.revokeObjectURL(url);
-  }, []);
+  }, [previewUrl]);
 
   // Handle file input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,11 +113,13 @@ const ImageUploadSection = ({
         throw new Error("Camera access not supported in this browser");
       }
 
-      // First try with environment facing camera (rear camera)
+      // Stop any existing camera stream
+      stopCamera();
+      
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: "environment",
+            facingMode: cameraFacing,
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -111,16 +130,18 @@ const ImageUploadSection = ({
           streamRef.current = stream;
           setIsCameraActive(true);
         }
-      } catch (envError) {
+      } catch (cameraError) {
         console.warn(
-          "Could not access environment camera, trying user camera",
-          envError,
+          `Could not access ${cameraFacing} camera, trying alternative`,
+          cameraError
         );
-
-        // Fallback to user facing camera (front camera)
+        
+        // Try the other camera if first one fails
+        const newFacing = cameraFacing === "environment" ? "user" : "environment";
+        
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: "user",
+            facingMode: newFacing,
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -130,13 +151,28 @@ const ImageUploadSection = ({
           videoRef.current.srcObject = stream;
           streamRef.current = stream;
           setIsCameraActive(true);
+          setCameraFacing(newFacing);
         }
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
       setError(
-        "Could not access camera. Please check permissions or try uploading an image instead.",
+        "Could not access camera. Please check permissions or try uploading an image instead."
       );
+      setActiveTab("upload");
+    }
+  };
+
+  // Toggle camera facing mode
+  const toggleCameraFacing = async () => {
+    const newFacing = cameraFacing === "environment" ? "user" : "environment";
+    setCameraFacing(newFacing);
+    
+    if (isCameraActive) {
+      stopCamera();
+      setTimeout(() => {
+        startCamera();
+      }, 300);
     }
   };
 
@@ -168,34 +204,30 @@ const ImageUploadSection = ({
         canvas.toBlob(
           (blob) => {
             if (blob) {
-              const file = new File([blob], "camera-capture.jpg", {
+              const file = new File([blob], `camera-capture-${Date.now()}.jpg`, {
                 type: "image/jpeg",
               });
               handleFileChange(file);
               stopCamera();
+              setActiveTab("preview");
             }
           },
           "image/jpeg",
-          0.95,
+          0.95
         );
       }
     }
   };
 
-  // Handle camera capture button click
-  const handleCameraCapture = () => {
-    if (typeof navigator.mediaDevices?.getUserMedia !== "function") {
-      // Fallback for browsers that don't support MediaDevices API
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.capture = "environment";
-      input.onchange = (e) =>
-        handleInputChange(e as React.ChangeEvent<HTMLInputElement>);
-      input.click();
-    } else {
-      startCamera();
-    }
+  // Handle camera tab selection
+  const handleCameraTabSelect = () => {
+    setActiveTab("camera");
+    startCamera();
+  };
+
+  // Trigger file selection dialog
+  const handleFileButtonClick = () => {
+    fileInputRef.current?.click();
   };
 
   // Clear selected image
@@ -206,6 +238,7 @@ const ImageUploadSection = ({
     setSelectedImage(null);
     setPreviewUrl(null);
     setError(null);
+    setActiveTab("upload");
   };
 
   // Submit image for processing
@@ -220,18 +253,8 @@ const ImageUploadSection = ({
     }
   };
 
-  // Clean up on unmount
-  React.useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      stopCamera();
-    };
-  }, [previewUrl]);
-
   return (
-    <Card className="w-full max-w-4xl mx-auto bg-card">
+    <Card className="w-full max-w-4xl mx-auto bg-card" id="upload-section">
       <CardHeader>
         <CardTitle className="text-2xl">Plant Disease Detection</CardTitle>
         <CardDescription>
@@ -247,111 +270,113 @@ const ImageUploadSection = ({
           </Alert>
         )}
 
-        {isCameraActive ? (
-          <div className="relative rounded-lg overflow-hidden">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              className="w-full h-auto max-h-[500px] object-contain bg-black"
-            />
-            <canvas ref={canvasRef} className="hidden" />
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
-              <Button onClick={stopCamera} variant="outline">
-                Cancel
-              </Button>
-              <Button onClick={capturePhoto}>
-                <Camera className="mr-2 h-4 w-4" /> Capture
-              </Button>
-            </div>
-          </div>
-        ) : !previewUrl ? (
-          <div
-            className={`border-2 border-dashed rounded-lg p-12 text-center ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}
-            onDragEnter={handleDrag}
-            onDragOver={handleDrag}
-            onDragLeave={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="rounded-full bg-primary/10 p-4">
-                <Upload className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <p className="text-lg font-medium">
-                  Drag and drop your image here
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  or use one of the options below
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-4 justify-center mt-4">
-                <Button
-                  onClick={() =>
-                    document.getElementById("file-upload")?.click()
-                  }
-                >
-                  <Upload className="mr-2 h-4 w-4" /> Upload Image
-                </Button>
-                <Button variant="outline" onClick={handleCameraCapture}>
-                  <Camera className="mr-2 h-4 w-4" /> Take Photo
-                </Button>
-                <input
-                  id="file-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleInputChange}
-                  className="hidden"
-                />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="relative rounded-lg overflow-hidden">
-            <img
-              src={previewUrl}
-              alt="Plant preview"
-              className="w-full h-auto max-h-[400px] object-contain bg-black/5"
-            />
-            <Button
-              variant="destructive"
-              size="icon"
-              className="absolute top-2 right-2 rounded-full"
-              onClick={clearImage}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="upload" disabled={isProcessing}>Upload</TabsTrigger>
+            <TabsTrigger value="camera" disabled={isProcessing} onClick={handleCameraTabSelect}>Camera</TabsTrigger>
+            {previewUrl && (
+              <TabsTrigger value="preview" disabled={isProcessing}>Preview</TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="upload" className="mt-4">
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 md:p-10 text-center flex flex-col items-center justify-center h-72 md:h-96 transition-colors ${
+                dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+              }`}
+              onDragEnter={handleDrag}
+              onDragOver={handleDrag}
+              onDragLeave={handleDrag}
+              onDrop={handleDrop}
             >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleInputChange}
+                className="hidden"
+              />
+              <Upload className="h-12 w-12 mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-1">Drag & drop your image here</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Supports JPG, PNG, WEBP (max 10MB)
+              </p>
+              <Button onClick={handleFileButtonClick} disabled={isProcessing}>
+                Browse Files
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="camera" className="mt-4">
+            <div className="flex flex-col items-center">
+              <div className="relative w-full rounded-lg overflow-hidden bg-black aspect-video">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+              <div className="flex mt-4 gap-4">
+                <Button variant="outline" onClick={toggleCameraFacing} disabled={!isCameraActive}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Switch Camera
+                </Button>
+                <Button onClick={capturePhoto} disabled={!isCameraActive}>
+                  <Camera className="h-4 w-4 mr-2" />
+                  Capture Photo
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="preview" className="mt-4">
+            {previewUrl && (
+              <div className="flex flex-col items-center">
+                <div className="border rounded-lg overflow-hidden w-full max-h-96">
+                  <img
+                    src={previewUrl}
+                    alt="Plant Preview"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-4 justify-center mt-4">
+                  <Button variant="outline" onClick={clearImage} disabled={isProcessing}>
+                    <X className="h-4 w-4 mr-2" />
+                    Clear
+                  </Button>
+                  <Button onClick={submitImage} disabled={isProcessing}>
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Analyze Plant
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
 
-      {previewUrl && (
-        <CardFooter className="flex justify-end space-x-4">
-          <Button
-            variant="outline"
-            onClick={clearImage}
+      <CardFooter className="flex justify-center border-t pt-6">
+        {selectedImage && activeTab !== "preview" && (
+          <Button 
+            variant="default" 
+            onClick={() => setActiveTab("preview")}
             disabled={isProcessing}
           >
-            Cancel
+            Continue with Selected Image
           </Button>
-          <Button
-            onClick={submitImage}
-            disabled={isProcessing || !selectedImage}
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Analyze Plant
-              </>
-            )}
-          </Button>
-        </CardFooter>
-      )}
+        )}
+      </CardFooter>
     </Card>
   );
 };

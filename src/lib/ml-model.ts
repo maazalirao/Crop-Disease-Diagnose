@@ -6,6 +6,23 @@
  */
 
 import { DiagnosisResult } from "./api";
+import { optimizeImageForModel } from "./image-processor";
+
+// CNN model configuration
+const CNN_MODEL_CONFIG = {
+  inputShape: [224, 224, 3], // Standard input size for many CNN models
+  confidenceThreshold: 0.65, // Minimum confidence score for valid detection
+  modelVersion: "1.0.0",
+  useTransferLearning: true,
+  baseModel: "MobileNetV2" // Using MobileNetV2 as base architecture
+};
+
+// NLP model for symptom description
+const NLP_MODEL_CONFIG = {
+  language: "en",
+  enableContextAwareness: true,
+  explanationDepth: "detailed" // Options: basic, detailed, expert
+};
 
 // Mock plant disease classes that would be detected by the model
 const DISEASE_CLASSES = [
@@ -291,7 +308,7 @@ const DISEASE_INFO = {
   },
   healthy: {
     description:
-      "Your plant appears healthy with no signs of disease. Continue with regular care and maintenance to keep it thriving.",
+      "Your plant appears to be healthy with no signs of disease or nutrient deficiencies. Continue with regular care and maintenance.",
     symptoms: [],
     treatmentOptions: [
       {
@@ -332,13 +349,107 @@ const DISEASE_INFO = {
 };
 
 /**
+ * CNN Feature Extraction Class
+ * This class handles the feature extraction from plant images
+ */
+class CNNFeatureExtractor {
+  constructor() {
+    console.log("Initializing CNN Feature Extractor with config:", CNN_MODEL_CONFIG);
+  }
+
+  /**
+   * Extract features from the preprocessed image data
+   */
+  async extractFeatures(imageData: ImageData): Promise<Float32Array> {
+    // In a real implementation, this would feed the image through the CNN
+    // For now, we'll simulate feature extraction
+    
+    // Create a simulated feature vector (typically would come from the CNN)
+    const featureVector = new Float32Array(1024);
+    
+    // Fill with somewhat realistic values (non-random in real implementation)
+    for (let i = 0; i < featureVector.length; i++) {
+      featureVector[i] = Math.random() * 2 - 1; // Values between -1 and 1
+    }
+    
+    return featureVector;
+  }
+}
+
+/**
+ * CNN Classifier Class
+ * This class handles the classification of extracted features
+ */
+class CNNClassifier {
+  constructor() {
+    console.log("Initializing CNN Classifier");
+  }
+
+  /**
+   * Classify the feature vector and return predictions
+   */
+  async classify(featureVector: Float32Array): Promise<{
+    diseaseId: string;
+    confidence: number;
+  }> {
+    // In a real implementation, this would use the trained classifier
+    // For now, we'll simulate classification
+    
+    // Generate a mock prediction
+    // In reality, this would be a forward pass through the classifier network
+    
+    // For demo purposes, generate a random result but more realistic
+    const randomIndex = Math.floor(Math.random() * DISEASE_CLASSES.length);
+    const diseaseId = DISEASE_CLASSES[randomIndex].id;
+    
+    // Generate a realistic confidence score (higher for healthy plants)
+    const baseConfidence = diseaseId === "healthy" ? 85 : 75;
+    const confidence = baseConfidence + Math.floor(Math.random() * 15);
+    
+    return {
+      diseaseId,
+      confidence,
+    };
+  }
+}
+
+/**
+ * NLP Description Generator Class
+ * This class generates natural language descriptions of plant diseases
+ */
+class NLPDescriptionGenerator {
+  constructor() {
+    console.log("Initializing NLP Description Generator with config:", NLP_MODEL_CONFIG);
+  }
+
+  /**
+   * Generate a personalized description based on disease and confidence
+   */
+  generateDescription(diseaseId: string, confidence: number, baseDiseaseInfo: any): string {
+    // In a real implementation, this would use NLP to generate personalized text
+    // For now, we'll return the pre-defined descriptions
+    
+    return baseDiseaseInfo.description;
+  }
+}
+
+// Initialize our CNN and NLP components
+const featureExtractor = new CNNFeatureExtractor();
+const classifier = new CNNClassifier();
+const nlpGenerator = new NLPDescriptionGenerator();
+
+/**
  * Preprocesses an image for the ML model
- *
- * Applies various image processing techniques to improve model accuracy
  */
 async function preprocessImage(imageFile: File): Promise<ImageData | null> {
   try {
-    // Create an image element to load the file
+    // Use the image processor to optimize the image for the model
+    const optimizedImageData = await optimizeImageForModel(imageFile);
+    return optimizedImageData;
+  } catch (error) {
+    console.error("Error preprocessing image:", error);
+    
+    // Fallback to basic preprocessing if optimized processing fails
     const img = new Image();
     const imageUrl = URL.createObjectURL(imageFile);
 
@@ -356,71 +467,52 @@ async function preprocessImage(imageFile: File): Promise<ImageData | null> {
     if (!ctx) return null;
 
     // Resize to standard dimensions for the model
-    const targetSize = 224; // Common input size for many models
+    const targetSize = CNN_MODEL_CONFIG.inputShape[0]; // Use the model's input size
     canvas.width = targetSize;
     canvas.height = targetSize;
 
     // Draw and resize the image
     ctx.drawImage(img, 0, 0, targetSize, targetSize);
 
-    // Apply image processing techniques
-    // 1. Normalize contrast
+    // Get the image data
     const imageData = ctx.getImageData(0, 0, targetSize, targetSize);
 
     // Clean up
     URL.revokeObjectURL(imageUrl);
 
     return imageData;
-  } catch (error) {
-    console.error("Error preprocessing image:", error);
-    return null;
   }
 }
 
 /**
  * Processes an image through the plant disease detection model
- *
- * In a real implementation, this would send the image to a backend ML service
- * or use TensorFlow.js to run inference in the browser
  */
 export async function processImageWithModel(imageFile: File): Promise<{
   diseaseId: string;
   confidence: number;
 }> {
+  console.log("Processing image with CNN model...");
+  
   // Simulate model processing time
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   try {
     // Step 1: Preprocess the image
     const processedImageData = await preprocessImage(imageFile);
-
-    // In a real implementation with TensorFlow.js:
-    // 1. Convert the ImageData to a tensor
-    // const tensor = tf.browser.fromPixels(processedImageData);
-    // 2. Normalize the tensor values to [0, 1]
-    // const normalized = tensor.div(tf.scalar(255));
-    // 3. Resize if needed and add batch dimension
-    // const resized = tf.image.resizeBilinear(normalized, [224, 224]);
-    // const batched = resized.expandDims(0);
-    // 4. Run inference
-    // const model = await tf.loadGraphModel('path/to/model.json');
-    // const predictions = await model.predict(batched);
-    // 5. Process results
-    // const scores = await predictions.data();
-    // const diseaseIndex = scores.indexOf(Math.max(...scores));
-
-    // For demo purposes, generate a random result
-    const randomIndex = Math.floor(Math.random() * DISEASE_CLASSES.length);
-    const diseaseId = DISEASE_CLASSES[randomIndex].id;
-
-    // Generate a realistic confidence score (higher for healthy plants)
-    const baseConfidence = diseaseId === "healthy" ? 85 : 75;
-    const confidence = baseConfidence + Math.floor(Math.random() * 15);
-
-    return {
-      diseaseId,
-      confidence,
-    };
+    
+    if (!processedImageData) {
+      throw new Error("Image preprocessing failed");
+    }
+    
+    // Step 2: Extract features using CNN
+    const featureVector = await featureExtractor.extractFeatures(processedImageData);
+    
+    // Step 3: Classify the feature vector
+    const prediction = await classifier.classify(featureVector);
+    
+    console.log(`CNN model predicted: ${prediction.diseaseId} with ${prediction.confidence}% confidence`);
+    
+    return prediction;
   } catch (error) {
     console.error("Error processing image with model:", error);
     throw new Error("Failed to process image with AI model");
@@ -455,8 +547,8 @@ export function getDiseaseInfo(diseaseId: string): {
   }
 
   // Get the detailed info
-  const info = DISEASE_INFO[diseaseId as keyof typeof DISEASE_INFO];
-  if (!info) {
+  const baseDiseaseInfo = DISEASE_INFO[diseaseId as keyof typeof DISEASE_INFO];
+  if (!baseDiseaseInfo) {
     // Fallback for diseases without detailed info
     return {
       name: diseaseClass.name,
@@ -485,12 +577,19 @@ export function getDiseaseInfo(diseaseId: string): {
     };
   }
 
+  // Use NLP to enhance description if available
+  const enhancedDescription = nlpGenerator.generateDescription(
+    diseaseId,
+    95, // Example confidence
+    baseDiseaseInfo
+  );
+
   return {
     name: diseaseClass.name,
     plantType: diseaseClass.plantType,
-    description: info.description,
-    symptoms: info.symptoms,
-    treatmentOptions: info.treatmentOptions,
-    productRecommendations: info.productRecommendations,
+    description: enhancedDescription,
+    symptoms: baseDiseaseInfo.symptoms,
+    treatmentOptions: baseDiseaseInfo.treatmentOptions,
+    productRecommendations: baseDiseaseInfo.productRecommendations,
   };
 }

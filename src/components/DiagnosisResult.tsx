@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
@@ -23,8 +23,19 @@ import {
   CheckCircle2,
   Leaf,
   Download,
+  ChevronDown,
+  ChevronUp,
+  Printer,
+  Clock,
 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./ui/accordion";
+import { cn } from "@/lib/utils";
 
 interface TreatmentOption {
   name: string;
@@ -51,6 +62,7 @@ interface DiagnosisResultProps {
   productRecommendations?: ProductRecommendation[];
   plantType?: string;
   imageUrl?: string;
+  timestamp?: string;
   onFeedbackSubmit?: (isHelpful: boolean) => void;
   feedbackSubmitted?: boolean;
 }
@@ -118,12 +130,16 @@ const DiagnosisResult: React.FC<DiagnosisResultProps> = ({
   ],
   plantType = "Tomato",
   imageUrl = "https://images.unsplash.com/photo-1592496001020-d31bd830651f?w=800&q=80",
+  timestamp,
   onFeedbackSubmit,
   feedbackSubmitted = false,
 }) => {
+  const [activeTab, setActiveTab] = useState("overview");
+  const [expandedImage, setExpandedImage] = useState(false);
+
   if (isLoading) {
     return (
-      <Card className="w-full max-w-4xl mx-auto bg-background">
+      <Card className="w-full max-w-4xl mx-auto bg-card">
         <CardContent className="p-6">
           <div className="flex flex-col items-center justify-center space-y-4 py-12">
             <div className="animate-pulse rounded-full bg-primary/20 h-16 w-16 flex items-center justify-center">
@@ -147,7 +163,9 @@ const DiagnosisResult: React.FC<DiagnosisResultProps> = ({
           title: isHealthy
             ? "Healthy Plant Diagnosis"
             : `Plant Disease: ${diseaseName}`,
-          text: `Check out my plant diagnosis: ${isHealthy ? "Healthy Plant" : diseaseName} (${confidenceScore}% confidence)`,
+          text: `Check out my plant diagnosis: ${
+            isHealthy ? "Healthy Plant" : diseaseName
+          } (${confidenceScore}% confidence)`,
           url: window.location.href,
         })
         .catch((error) => console.log("Error sharing", error));
@@ -164,7 +182,7 @@ const DiagnosisResult: React.FC<DiagnosisResultProps> = ({
     const reportContent = `
       Plant Disease Diagnosis Report
       ============================
-      Date: ${new Date().toLocaleDateString()}
+      Date: ${timestamp ? new Date(timestamp).toLocaleDateString() : new Date().toLocaleDateString()}
       
       Diagnosis: ${isHealthy ? "Healthy Plant" : diseaseName}
       Plant Type: ${plantType}
@@ -172,9 +190,19 @@ const DiagnosisResult: React.FC<DiagnosisResultProps> = ({
       
       ${description}
       
-      ${!isHealthy ? `Symptoms:\n${symptoms?.join("\n")}` : ""}
+      ${
+        !isHealthy
+          ? `Symptoms:\n${symptoms?.join("\n")}`
+          : "No disease symptoms detected."
+      }
       
-      ${!isHealthy ? `Recommended Treatments:\n${treatmentOptions?.map((t) => `- ${t.name}: ${t.description}`).join("\n")}` : ""}
+      ${
+        !isHealthy
+          ? `Recommended Treatments:\n${treatmentOptions
+              ?.map((t) => `- ${t.name}: ${t.description}`)
+              .join("\n")}`
+          : "Continue regular plant care and maintenance."
+      }
     `;
 
     const blob = new Blob([reportContent], { type: "text/plain" });
@@ -188,207 +216,417 @@ const DiagnosisResult: React.FC<DiagnosisResultProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  const formatTimestamp = (timestamp?: string) => {
+    if (!timestamp) return "Just now";
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  };
+
   return (
-    <Card className="w-full max-w-4xl mx-auto bg-background">
-      <CardHeader>
+    <Card className="w-full max-w-4xl mx-auto bg-card print:shadow-none" id="diagnosis-result">
+      <CardHeader className="print:pb-2">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="text-2xl font-bold">
-              {isHealthy
-                ? "Healthy Plant Detected"
-                : `Diagnosis: ${diseaseName}`}
+              {isHealthy ? "Healthy Plant Detected" : `Diagnosis: ${diseaseName}`}
             </CardTitle>
-            <CardDescription className="mt-2">
-              Plant Type: {plantType} | Confidence: {confidenceScore}%
+            <CardDescription className="mt-1 flex items-center gap-2">
+              <Badge variant={isHealthy ? "success" : "destructive"} className="text-xs">
+                {isHealthy ? (
+                  <CheckCircle2 className="mr-1 h-3 w-3" />
+                ) : (
+                  <AlertCircle className="mr-1 h-3 w-3" />
+                )}
+                {isHealthy ? "Healthy" : "Disease Detected"}
+              </Badge>
+              <span>Plant Type: {plantType}</span>
+              {timestamp && (
+                <span className="flex items-center text-xs">
+                  <Clock className="mr-1 h-3 w-3" />
+                  {formatTimestamp(timestamp)}
+                </span>
+              )}
             </CardDescription>
           </div>
-          <Badge
-            variant={isHealthy ? "default" : "destructive"}
-            className="text-sm py-1 px-3 self-start md:self-auto"
-          >
-            {isHealthy ? (
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-4 w-4" /> Healthy
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" /> Disease Detected
-              </span>
-            )}
-          </Badge>
+          <div className="flex gap-2 print:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={handleDownloadReport}
+            >
+              <Download className="mr-1 h-3 w-3" />
+              Download
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={handlePrintReport}
+            >
+              <Printer className="mr-1 h-3 w-3" />
+              Print
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={handleShare}>
+              <Share2 className="mr-1 h-3 w-3" />
+              Share
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <div className="rounded-lg overflow-hidden border">
-              <img
-                src={imageUrl}
-                alt={isHealthy ? "Healthy plant" : `Plant with ${diseaseName}`}
-                className="w-full h-64 object-cover"
-                onError={(e) => {
-                  // Fallback image if the original fails to load
-                  (e.target as HTMLImageElement).src =
-                    "https://images.unsplash.com/photo-1592496001020-d31bd830651f?w=800&q=80";
-                }}
+      <CardContent className="p-6 print:pt-2">
+        <div className="flex flex-col lg:flex-row gap-6 mb-6">
+          <div 
+            className={`relative rounded-lg overflow-hidden border ${
+              expandedImage ? "lg:w-full" : "lg:w-1/3"
+            }`}
+          >
+            <img
+              src={imageUrl}
+              alt={isHealthy ? "Healthy Plant" : `Plant with ${diseaseName}`}
+              className="w-full h-auto object-cover"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute bottom-2 right-2 bg-black/30 text-white hover:bg-black/50 print:hidden"
+              onClick={() => setExpandedImage(!expandedImage)}
+            >
+              {expandedImage ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronUp className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+
+          <div className={expandedImage ? "hidden lg:block lg:w-2/3" : "lg:w-2/3"}>
+            <div className="flex items-center mb-4">
+              <div className="mr-3">
+                <div className="text-sm font-medium text-muted-foreground">
+                  Confidence
+                </div>
+                <div className="text-2xl font-bold">{confidenceScore}%</div>
+              </div>
+              <Progress
+                value={confidenceScore}
+                className={cn("h-3 flex-1", {
+                  "bg-green-100": confidenceScore > 80,
+                  "bg-yellow-100": confidenceScore > 60 && confidenceScore <= 80,
+                  "bg-red-100": confidenceScore <= 60
+                })}
               />
             </div>
-          </div>
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">
-              {isHealthy ? "Plant Status" : "Disease Information"}
-            </h3>
-            <p className="text-muted-foreground">{description}</p>
 
-            {!isHealthy && symptoms && symptoms.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium">Common Symptoms:</h4>
-                <ul className="list-disc pl-5 space-y-1">
+            <h3 className="font-medium text-lg mb-2">Description</h3>
+            <p className="text-muted-foreground mb-4">{description}</p>
+
+            {!isHealthy && symptoms.length > 0 && (
+              <>
+                <h3 className="font-medium text-lg mb-2">Symptoms</h3>
+                <ul className="mb-4 pl-5 list-disc text-muted-foreground">
                   {symptoms.map((symptom, index) => (
-                    <li key={index} className="text-sm">
+                    <li key={index} className="mb-1">
                       {symptom}
                     </li>
                   ))}
                 </ul>
-              </div>
+              </>
             )}
           </div>
         </div>
 
-        {!isHealthy && (
-          <div className="pt-4">
-            <Tabs defaultValue="treatment">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="treatment">Treatment Options</TabsTrigger>
-                <TabsTrigger value="products">Recommended Products</TabsTrigger>
-              </TabsList>
+        <Separator className="my-6 print:hidden" />
 
-              <TabsContent value="treatment" className="space-y-4 pt-4">
-                {treatmentOptions.map((option, index) => (
-                  <div key={index} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-medium">{option.name}</h3>
-                      <Badge variant="outline" className="ml-2">
-                        {option.effectiveness}% Effective
+        <Tabs
+          defaultValue="overview"
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="print:hidden"
+        >
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="treatments">
+              Treatments
+            </TabsTrigger>
+            <TabsTrigger value="products">
+              Products
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Plant Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="space-y-2">
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-muted-foreground">Plant Type:</dt>
+                      <dd className="text-sm font-medium">{plantType}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-muted-foreground">Diagnosis:</dt>
+                      <dd className="text-sm font-medium">
+                        {isHealthy ? "Healthy" : diseaseName}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-muted-foreground">Confidence:</dt>
+                      <dd className="text-sm font-medium">{confidenceScore}%</dd>
+                    </div>
+                    {timestamp && (
+                      <div className="flex justify-between">
+                        <dt className="text-sm text-muted-foreground">Date:</dt>
+                        <dd className="text-sm font-medium">
+                          {formatTimestamp(timestamp)}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">
+                    {isHealthy ? "Health Status" : "Disease Summary"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {isHealthy
+                      ? "Your plant appears to be healthy. Continue with regular care."
+                      : description}
+                  </p>
+                  {!isHealthy && symptoms.length > 0 && (
+                    <>
+                      <h4 className="text-sm font-medium mb-2">Key Symptoms:</h4>
+                      <ul className="pl-5 list-disc text-sm text-muted-foreground">
+                        {symptoms.slice(0, 3).map((symptom, index) => (
+                          <li key={index}>{symptom}</li>
+                        ))}
+                        {symptoms.length > 3 && (
+                          <li className="text-primary cursor-pointer" onClick={() => setExpandedImage(false)}>
+                            + {symptoms.length - 3} more symptoms
+                          </li>
+                        )}
+                      </ul>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {!feedbackSubmitted && onFeedbackSubmit && (
+              <div className="bg-muted/50 p-4 rounded-lg mt-6">
+                <h3 className="text-sm font-medium mb-2">Was this diagnosis helpful?</h3>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => onFeedbackSubmit(true)}
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                    Yes
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => onFeedbackSubmit(false)}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                    No
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {feedbackSubmitted && (
+              <Alert className="mt-6">
+                <AlertDescription>
+                  Thank you for your feedback! It helps us improve our diagnosis
+                  system.
+                </AlertDescription>
+              </Alert>
+            )}
+          </TabsContent>
+
+          <TabsContent value="treatments" className="mt-6">
+            {isHealthy ? (
+              <div className="text-center py-6">
+                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                <h3 className="text-xl font-medium mb-2">No Treatment Needed</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Your plant appears to be healthy. Continue with regular care and
+                  maintenance.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <Accordion type="single" collapsible className="w-full">
+                  {treatmentOptions.map((treatment, index) => (
+                    <AccordionItem key={index} value={`treatment-${index}`}>
+                      <AccordionTrigger>
+                        <div className="flex items-center">
+                          <span className="font-medium">{treatment.name}</span>
+                          <Badge
+                            variant={
+                              treatment.effectiveness > 80
+                                ? "success"
+                                : treatment.effectiveness > 60
+                                  ? "warning"
+                                  : "default"
+                            }
+                            className="ml-2"
+                          >
+                            {treatment.effectiveness}% Effective
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2 pt-2">
+                          <p className="text-muted-foreground">
+                            {treatment.description}
+                          </p>
+                          <div>
+                            <h4 className="text-sm font-medium">Application Method:</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {treatment.applicationMethod}
+                            </p>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+
+                <div className="bg-muted/50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium mb-2">Treatment Tips</h3>
+                  <ul className="space-y-1 text-sm text-muted-foreground ml-5 list-disc">
+                    <li>Apply treatments consistently as directed for best results</li>
+                    <li>
+                      Monitor plant response and adjust treatment if necessary
+                    </li>
+                    <li>
+                      Isolate affected plants to prevent spread to healthy plants
+                    </li>
+                    <li>
+                      Continue treatments until symptoms disappear completely
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="products" className="mt-6">
+            {isHealthy ? (
+              <div className="text-center py-6">
+                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                <h3 className="text-xl font-medium mb-2">No Products Needed</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Your plant is healthy! Continue with regular fertilization and care
+                  products as part of your maintenance routine.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {productRecommendations.map((product, index) => (
+                  <Card key={index}>
+                    <div className="aspect-video relative overflow-hidden">
+                      <img
+                        src={
+                          product.imageUrl ||
+                          "https://images.unsplash.com/photo-1614935151651-0bea6508db6b?w=400&q=80"
+                        }
+                        alt={product.name}
+                        className="object-cover w-full h-full"
+                      />
+                      <Badge
+                        className="absolute top-2 right-2"
+                        variant="outline"
+                      >
+                        {product.type}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {option.description}
-                    </p>
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Application Method:
-                      </h4>
+                    <CardHeader className="pb-2 pt-3">
+                      <CardTitle className="text-lg">{product.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       <p className="text-sm text-muted-foreground">
-                        {option.applicationMethod}
+                        {product.description}
                       </p>
-                    </div>
-                  </div>
+                    </CardContent>
+                    <CardFooter className="pt-0">
+                      <Button variant="outline" size="sm" className="text-xs w-full">
+                        Learn More
+                      </Button>
+                    </CardFooter>
+                  </Card>
                 ))}
-              </TabsContent>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
-              <TabsContent value="products" className="pt-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {productRecommendations.map((product, index) => (
-                    <Card key={index} className="overflow-hidden">
-                      {product.imageUrl && (
-                        <div className="h-40 overflow-hidden">
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <CardContent className="p-4">
-                        <h3 className="font-medium">{product.name}</h3>
-                        <Badge variant="outline" className="mt-1 mb-2">
-                          {product.type}
-                        </Badge>
-                        <p className="text-xs text-muted-foreground">
-                          {product.description}
-                        </p>
-                      </CardContent>
-                    </Card>
+        {/* Print version content */}
+        <div className="hidden print:block mt-6 space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Diagnosis Summary</h3>
+            <p>{description}</p>
+            
+            {!isHealthy && (
+              <>
+                <h3 className="text-lg font-medium">Symptoms</h3>
+                <ul className="pl-5 list-disc">
+                  {symptoms.map((symptom, i) => (
+                    <li key={i}>{symptom}</li>
                   ))}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-
-        {isHealthy && (
-          <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/20">
-            <h3 className="font-medium text-green-700 dark:text-green-400">
-              Preventative Care Tips
+                </ul>
+              </>
+            )}
+            
+            <h3 className="text-lg font-medium">
+              {isHealthy ? "Maintenance Recommendations" : "Treatment Recommendations"}
             </h3>
-            <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-green-700 dark:text-green-400">
-              <li>Maintain proper watering schedule - avoid overwatering</li>
-              <li>Ensure adequate sunlight exposure for your plant type</li>
-              <li>Regularly inspect for early signs of pests or disease</li>
-              <li>Apply balanced fertilizer according to plant needs</li>
-              <li>Prune dead or damaged parts to promote healthy growth</li>
-            </ul>
+            {isHealthy ? (
+              <p>Continue with regular care and maintenance for your healthy plant.</p>
+            ) : (
+              <ul className="pl-5 list-disc">
+                {treatmentOptions.map((treatment, i) => (
+                  <li key={i} className="mb-2">
+                    <strong>{treatment.name} ({treatment.effectiveness}% Effective):</strong> {treatment.description}
+                    <br />
+                    <span className="text-sm">Application: {treatment.applicationMethod}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            
+            {!isHealthy && (
+              <>
+                <h3 className="text-lg font-medium">Recommended Products</h3>
+                <ul className="pl-5 list-disc">
+                  {productRecommendations.map((product, i) => (
+                    <li key={i}>
+                      <strong>{product.name}</strong> ({product.type}): {product.description}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
-        )}
-
-        {feedbackSubmitted && (
-          <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
-            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-            <AlertDescription className="text-green-700 dark:text-green-400">
-              Thank you for your feedback! It helps us improve our diagnosis
-              system.
-            </AlertDescription>
-          </Alert>
-        )}
+        </div>
       </CardContent>
-
-      <Separator />
-
-      <CardFooter className="flex flex-col sm:flex-row justify-between items-center py-4 space-y-3 sm:space-y-0">
-        <div className="flex items-center space-x-4">
-          <p className="text-sm font-medium">Was this diagnosis helpful?</p>
-          <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2"
-              onClick={() => onFeedbackSubmit?.(true)}
-              disabled={feedbackSubmitted}
-            >
-              <ThumbsUp className="h-4 w-4 mr-1" /> Yes
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2"
-              onClick={() => onFeedbackSubmit?.(false)}
-              disabled={feedbackSubmitted}
-            >
-              <ThumbsDown className="h-4 w-4 mr-1" /> No
-            </Button>
-          </div>
-        </div>
-        <div className="flex space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2"
-            onClick={handleDownloadReport}
-          >
-            <Download className="h-4 w-4 mr-1" /> Report
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2"
-            onClick={handleShare}
-          >
-            <Share2 className="h-4 w-4 mr-1" /> Share
-          </Button>
-        </div>
-      </CardFooter>
     </Card>
   );
 };

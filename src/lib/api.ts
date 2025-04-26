@@ -38,24 +38,58 @@ export interface DiagnosisResult {
 }
 
 /**
+ * Checks if Supabase is properly configured
+ */
+async function checkSupabaseConnection(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('diagnoses').select('id').limit(1);
+    
+    if (error && (error.code === 'PGRST301' || error.message.includes('authentication'))) {
+      console.error('Supabase authentication error:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error checking Supabase connection:', error);
+    return false;
+  }
+}
+
+/**
  * Uploads an image to Supabase storage
  */
 async function uploadImage(image: File): Promise<string> {
-  const fileExt = image.name.split(".").pop();
-  const fileName = `${uuidv4()}.${fileExt}`;
-  const filePath = `plant-images/${fileName}`;
-
-  const { error } = await supabase.storage
-    .from("plant-images")
-    .upload(filePath, image);
-
-  if (error) {
-    console.error("Error uploading image:", error);
-    throw new Error("Failed to upload image");
+  // Check if Supabase is configured
+  const isConnected = await checkSupabaseConnection();
+  
+  if (!isConnected) {
+    // Fallback to returning a temporary URL for the uploaded file
+    return URL.createObjectURL(image);
   }
+  
+  try {
+    const fileExt = image.name.split(".").pop();
+    const fileName = `${uuidv4()}.${fileExt}`;
+    const filePath = `plant-images/${fileName}`;
 
-  const { data } = supabase.storage.from("plant-images").getPublicUrl(filePath);
-  return data.publicUrl;
+    const { error } = await supabase.storage
+      .from("plant-images")
+      .upload(filePath, image);
+
+    if (error) {
+      console.error("Error uploading image:", error);
+      // Fallback to returning a temporary URL in case of upload failure
+      return URL.createObjectURL(image);
+    }
+
+    const { data } = supabase.storage.from("plant-images").getPublicUrl(filePath);
+    return data.publicUrl;
+  } catch (error) {
+    console.error("Error in uploadImage:", error);
+    // Fallback to returning a temporary URL
+    return URL.createObjectURL(image);
+  }
 }
 
 /**
@@ -92,8 +126,13 @@ export async function analyzePlantImage(image: File): Promise<DiagnosisResult> {
       timestamp: new Date().toISOString(),
     };
 
-    // Save diagnosis to Supabase
-    await saveDiagnosisToDatabase(diagnosisResult);
+    // Try to save diagnosis to Supabase, but continue even if it fails
+    try {
+      await saveDiagnosisToDatabase(diagnosisResult);
+    } catch (saveError) {
+      console.error("Non-fatal error saving diagnosis to database:", saveError);
+      // Continue with the diagnosis even if saving fails
+    }
 
     return diagnosisResult;
   } catch (error) {
@@ -106,6 +145,14 @@ export async function analyzePlantImage(image: File): Promise<DiagnosisResult> {
  * Saves a diagnosis result to Supabase database
  */
 async function saveDiagnosisToDatabase(result: DiagnosisResult): Promise<void> {
+  // Check if Supabase is configured
+  const isConnected = await checkSupabaseConnection();
+  
+  if (!isConnected) {
+    console.warn('Skipping database save: Supabase connection not available');
+    return;
+  }
+  
   try {
     // Insert into diagnoses table
     const { error: diagnosisError } = await supabase.from("diagnoses").insert({
@@ -118,7 +165,10 @@ async function saveDiagnosisToDatabase(result: DiagnosisResult): Promise<void> {
       description: result.description,
     });
 
-    if (diagnosisError) throw diagnosisError;
+    if (diagnosisError) {
+      console.error("Error inserting diagnosis:", diagnosisError);
+      throw diagnosisError;
+    }
 
     // Insert into diagnosis_details table
     const { error: detailsError } = await supabase
@@ -130,7 +180,10 @@ async function saveDiagnosisToDatabase(result: DiagnosisResult): Promise<void> {
         product_recommendations: result.productRecommendations,
       });
 
-    if (detailsError) throw detailsError;
+    if (detailsError) {
+      console.error("Error inserting diagnosis details:", detailsError);
+      throw detailsError;
+    }
   } catch (error) {
     console.error("Error saving diagnosis to database:", error);
     throw new Error("Failed to save diagnosis results");
@@ -141,6 +194,15 @@ async function saveDiagnosisToDatabase(result: DiagnosisResult): Promise<void> {
  * Gets the user's diagnosis history from Supabase
  */
 export async function getDiagnosisHistory(): Promise<DiagnosisResult[]> {
+  // Check if Supabase is configured
+  const isConnected = await checkSupabaseConnection();
+  
+  if (!isConnected) {
+    // Return empty array if Supabase is not available
+    console.warn('Returning empty diagnosis history: Supabase connection not available');
+    return [];
+  }
+  
   try {
     // Get diagnoses from Supabase
     const { data: diagnoses, error: diagnosesError } = await supabase
@@ -148,37 +210,46 @@ export async function getDiagnosisHistory(): Promise<DiagnosisResult[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (diagnosesError) throw diagnosesError;
-    if (!diagnoses) return [];
+    if (diagnosesError) {
+      console.error("Error fetching diagnoses:", diagnosesError);
+      return [];
+    }
+    
+    if (!diagnoses || diagnoses.length === 0) return [];
 
     // Get details for each diagnosis
     const diagnosisResults: DiagnosisResult[] = [];
 
     for (const diagnosis of diagnoses) {
-      const { data: details, error: detailsError } = await supabase
-        .from("diagnosis_details")
-        .select("*")
-        .eq("diagnosis_id", diagnosis.id)
-        .single();
+      try {
+        const { data: details, error: detailsError } = await supabase
+          .from("diagnosis_details")
+          .select("*")
+          .eq("diagnosis_id", diagnosis.id)
+          .single();
 
-      if (detailsError && detailsError.code !== "PGRST116") {
-        console.error("Error fetching diagnosis details:", detailsError);
-        continue;
+        if (detailsError && detailsError.code !== "PGRST116") {
+          console.error("Error fetching diagnosis details:", detailsError);
+          continue;
+        }
+
+        diagnosisResults.push({
+          id: diagnosis.id,
+          isHealthy: diagnosis.is_healthy,
+          diseaseName: diagnosis.disease_name || undefined,
+          confidenceScore: diagnosis.confidence_score,
+          description: diagnosis.description,
+          symptoms: details?.symptoms || [],
+          treatmentOptions: details?.treatment_options || [],
+          productRecommendations: details?.product_recommendations || [],
+          plantType: diagnosis.plant_type,
+          imageUrl: diagnosis.image_path,
+          timestamp: diagnosis.created_at,
+        });
+      } catch (error) {
+        console.error(`Error processing diagnosis ${diagnosis.id}:`, error);
+        // Continue with next diagnosis
       }
-
-      diagnosisResults.push({
-        id: diagnosis.id,
-        isHealthy: diagnosis.is_healthy,
-        diseaseName: diagnosis.disease_name || undefined,
-        confidenceScore: diagnosis.confidence_score,
-        description: diagnosis.description,
-        symptoms: details?.symptoms || [],
-        treatmentOptions: details?.treatment_options || [],
-        productRecommendations: details?.product_recommendations || [],
-        plantType: diagnosis.plant_type,
-        imageUrl: diagnosis.image_path,
-        timestamp: diagnosis.created_at,
-      });
     }
 
     return diagnosisResults;
@@ -194,6 +265,19 @@ export async function getDiagnosisHistory(): Promise<DiagnosisResult[]> {
 export async function getDiagnosisById(
   id: string,
 ): Promise<DiagnosisResult | null> {
+  if (!id) {
+    console.error("Invalid diagnosis ID provided");
+    return null;
+  }
+  
+  // Check if Supabase is configured
+  const isConnected = await checkSupabaseConnection();
+  
+  if (!isConnected) {
+    console.warn('Returning null for diagnosis: Supabase connection not available');
+    return null;
+  }
+  
   try {
     // Get diagnosis from Supabase
     const { data: diagnosis, error: diagnosisError } = await supabase
@@ -202,7 +286,11 @@ export async function getDiagnosisById(
       .eq("id", id)
       .single();
 
-    if (diagnosisError) throw diagnosisError;
+    if (diagnosisError) {
+      console.error("Error fetching diagnosis:", diagnosisError);
+      return null;
+    }
+    
     if (!diagnosis) return null;
 
     // Get details
@@ -239,23 +327,44 @@ export async function getDiagnosisById(
  * Deletes a diagnosis from history
  */
 export async function deleteDiagnosisFromHistory(id: string): Promise<void> {
+  if (!id) {
+    console.error("Invalid diagnosis ID provided for deletion");
+    throw new Error("Invalid diagnosis ID");
+  }
+  
+  // Check if Supabase is configured
+  const isConnected = await checkSupabaseConnection();
+  
+  if (!isConnected) {
+    console.warn('Skipping deletion: Supabase connection not available');
+    return;
+  }
+  
   try {
     // Get the image path before deleting
-    const { data: diagnosis } = await supabase
+    const { data: diagnosis, error: pathError } = await supabase
       .from("diagnoses")
       .select("image_path")
       .eq("id", id)
       .single();
 
+    if (pathError) {
+      console.error("Error fetching image path:", pathError);
+    }
+
     // Delete from diagnoses table (will cascade to diagnosis_details)
     const { error } = await supabase.from("diagnoses").delete().eq("id", id);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error deleting diagnosis:", error);
+      throw error;
+    }
 
     // Delete the image from storage if it exists
     if (
       diagnosis?.image_path &&
-      !diagnosis.image_path.includes("unsplash.com")
+      !diagnosis.image_path.includes("unsplash.com") &&
+      !diagnosis.image_path.includes("blob:")
     ) {
       try {
         const url = new URL(diagnosis.image_path);
@@ -283,6 +392,19 @@ export async function submitDiagnosisFeedback(
   isHelpful: boolean,
   comments?: string,
 ): Promise<void> {
+  if (!diagnosisId) {
+    console.error("Invalid diagnosis ID provided for feedback");
+    throw new Error("Invalid diagnosis ID");
+  }
+  
+  // Check if Supabase is configured
+  const isConnected = await checkSupabaseConnection();
+  
+  if (!isConnected) {
+    console.warn('Skipping feedback submission: Supabase connection not available');
+    return;
+  }
+  
   try {
     const { error } = await supabase
       .from("diagnosis_details")
@@ -292,7 +414,10 @@ export async function submitDiagnosisFeedback(
       })
       .eq("diagnosis_id", diagnosisId);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error submitting feedback:", error);
+      throw error;
+    }
   } catch (error) {
     console.error("Error submitting feedback:", error);
     throw new Error("Failed to submit feedback");

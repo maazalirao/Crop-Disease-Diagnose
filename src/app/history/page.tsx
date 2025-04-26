@@ -56,7 +56,7 @@ export default function HistoryPage() {
     };
 
     loadHistory();
-  }, [];
+  }, []);
 
   const handleDelete = async (id: string) => {
     try {

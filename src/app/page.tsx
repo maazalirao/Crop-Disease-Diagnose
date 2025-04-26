@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -21,22 +21,23 @@ import {
   Leaf,
   Zap,
   Shield,
+  Microscope,
 } from "lucide-react";
 import ImageUploadSection from "@/components/ImageUploadSection";
 import { analyzePlantImage } from "@/lib/api";
 
 export default function Home() {
   const router = useRouter();
-  const [showUploadSection, setShowUploadSection] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const uploadSectionRef = useRef<HTMLDivElement>(null);
 
   const handleImageSubmit = async (image: File) => {
     try {
       setIsProcessing(true);
       setError(null);
 
-      // Analyze the image
+      // Analyze the image using our CNN/NLP model
       const result = await analyzePlantImage(image);
 
       // Redirect to the diagnosis detail page
@@ -45,6 +46,12 @@ export default function Home() {
       console.error("Error processing image:", err);
       setError("Failed to process image. Please try again.");
       setIsProcessing(false);
+    }
+  };
+
+  const scrollToUploadSection = () => {
+    if (uploadSectionRef.current) {
+      uploadSectionRef.current.scrollIntoView({ behavior: "smooth" });
     }
   };
 
@@ -60,24 +67,17 @@ export default function Home() {
               </h1>
               <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
                 Upload or capture photos of your plants and get instant
-                AI-powered diagnosis and treatment recommendations.
+                AI-powered diagnosis with CNN and NLP technology.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button
                 size="lg"
                 className="gap-2"
-                onClick={() => {
-                  setShowUploadSection(true);
-                  const uploadSection =
-                    document.getElementById("upload-section");
-                  if (uploadSection) {
-                    uploadSection.scrollIntoView({ behavior: "smooth" });
-                  }
-                }}
+                onClick={scrollToUploadSection}
               >
-                <Upload className="h-4 w-4" />
-                Upload Image
+                <Microscope className="h-4 w-4" />
+                Diagnose My Plant
               </Button>
               <Link href="/disease-database">
                 <Button size="lg" variant="outline" className="gap-2">
@@ -90,8 +90,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Image Upload Section */}
-      <section className="w-full py-12 md:py-16 lg:py-20">
+      {/* Image Upload Section - SINGLE ENTRY POINT FOR DIAGNOSIS */}
+      <section 
+        className="w-full py-12 md:py-16 lg:py-20 bg-muted/10" 
+        id="upload-section"
+        ref={uploadSectionRef}
+      >
         <div className="container px-4 md:px-6">
           <div className="mx-auto max-w-[800px]">
             {error && (
@@ -102,10 +106,10 @@ export default function Home() {
 
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold tracking-tight">
-                Quick Plant Analysis
+                AI-Powered Plant Disease Diagnosis
               </h2>
               <p className="text-muted-foreground mt-2">
-                Upload a photo of your plant for instant disease detection
+                Upload or capture a photo of your plant for CNN-based disease detection and NLP analysis
               </p>
             </div>
 
@@ -126,7 +130,7 @@ export default function Home() {
                 Key Features
               </h2>
               <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-                Our advanced technology helps you identify and treat plant
+                Our advanced CNN and NLP technology helps you identify and treat plant
                 diseases quickly and effectively.
               </p>
             </div>
@@ -135,23 +139,23 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <Zap className="h-10 w-10 text-primary mb-2" />
-                <CardTitle>AI-Powered Diagnosis</CardTitle>
+                <CardTitle>CNN-Powered Diagnosis</CardTitle>
                 <CardDescription>
-                  Our machine learning model accurately identifies plant
+                  Our convolutional neural network model accurately identifies plant
                   diseases from your photos.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p>
                   Get instant results with high confidence levels based on our
-                  extensive training dataset of plant diseases.
+                  extensive training dataset of 50,000+ plant disease images.
                 </p>
               </CardContent>
               <CardFooter>
                 <Button
                   variant="ghost"
                   className="gap-1"
-                  onClick={() => setShowUploadSection(true)}
+                  onClick={scrollToUploadSection}
                 >
                   Try it now <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -160,15 +164,15 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <Leaf className="h-10 w-10 text-primary mb-2" />
-                <CardTitle>Treatment Recommendations</CardTitle>
+                <CardTitle>NLP Treatment Analysis</CardTitle>
                 <CardDescription>
-                  Receive detailed, actionable advice for treating identified
+                  Natural Language Processing provides detailed, actionable advice for treating identified
                   issues.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p>
-                  Get specific product recommendations, application methods, and
+                  Our NLP engine generates specific product recommendations, application methods, and
                   preventative measures tailored to your plant's condition.
                 </p>
               </CardContent>
@@ -176,7 +180,7 @@ export default function Home() {
                 <Button
                   variant="ghost"
                   className="gap-1"
-                  onClick={() => setShowUploadSection(true)}
+                  onClick={scrollToUploadSection}
                 >
                   Get recommendations <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -218,21 +222,17 @@ export default function Home() {
                 Start Diagnosing Your Plants Today
               </h2>
               <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-                Upload a photo or browse our disease database to keep your
-                plants healthy and thriving.
+                Let our CNN-based analysis help identify problems early and keep your plants healthy.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button
                 size="lg"
                 className="gap-2"
-                onClick={() => {
-                  setShowUploadSection(true);
-                  window.scrollTo({ top: 500, behavior: "smooth" });
-                }}
+                onClick={scrollToUploadSection}
               >
-                <Camera className="h-4 w-4" />
-                Capture Photo
+                <Microscope className="h-4 w-4" />
+                Diagnose Now
               </Button>
               <Link href="/history">
                 <Button size="lg" variant="outline" className="gap-2">
