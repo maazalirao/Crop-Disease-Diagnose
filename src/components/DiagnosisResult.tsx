@@ -227,6 +227,11 @@ const DiagnosisResult: React.FC<DiagnosisResultProps> = ({
                 src={imageUrl}
                 alt={isHealthy ? "Healthy plant" : `Plant with ${diseaseName}`}
                 className="w-full h-64 object-cover"
+                onError={(e) => {
+                  // Fallback image if the original fails to load
+                  (e.target as HTMLImageElement).src =
+                    "https://images.unsplash.com/photo-1592496001020-d31bd830651f?w=800&q=80";
+                }}
               />
             </div>
           </div>

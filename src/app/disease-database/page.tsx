@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Link from "next/link";
 
 export default function DiseaseDatabasePage() {
   // Mock data for diseases
@@ -63,7 +64,7 @@ export default function DiseaseDatabasePage() {
         "Increase spacing between plants",
       ],
       image:
-        "https://images.unsplash.com/photo-1598512752271-33f913a5af13?w=600&q=80",
+        "https://images.unsplash.com/photo-1591857177580-dc82b9ac4e1e?w=600&q=80",
     },
     {
       id: 3,
@@ -84,7 +85,7 @@ export default function DiseaseDatabasePage() {
         "Avoid overhead irrigation",
       ],
       image:
-        "https://images.unsplash.com/photo-1598512752271-33f913a5af13?w=600&q=80",
+        "https://images.unsplash.com/photo-1587334207809-35122c523a32?w=600&q=80",
     },
     {
       id: 4,
@@ -105,7 +106,7 @@ export default function DiseaseDatabasePage() {
         "Plant resistant varieties",
       ],
       image:
-        "https://images.unsplash.com/photo-1598512752271-33f913a5af13?w=600&q=80",
+        "https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2?w=600&q=80",
     },
   ];
 
@@ -330,9 +331,11 @@ export default function DiseaseDatabasePage() {
             This database provides information on common plant diseases, their
             symptoms, and recommended treatments. If you've identified a disease
             in your crops, use our
-            <Button variant="link" className="px-1 py-0">
-              Disease Detection Tool
-            </Button>
+            <Link href="/diagnosis">
+              <Button variant="link" className="px-1 py-0">
+                Disease Detection Tool
+              </Button>
+            </Link>
             for a more accurate diagnosis and personalized treatment
             recommendations.
           </p>

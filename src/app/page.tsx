@@ -67,7 +67,14 @@ export default function Home() {
               <Button
                 size="lg"
                 className="gap-2"
-                onClick={() => setShowUploadSection(true)}
+                onClick={() => {
+                  setShowUploadSection(true);
+                  const uploadSection =
+                    document.getElementById("upload-section");
+                  if (uploadSection) {
+                    uploadSection.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
               >
                 <Upload className="h-4 w-4" />
                 Upload Image

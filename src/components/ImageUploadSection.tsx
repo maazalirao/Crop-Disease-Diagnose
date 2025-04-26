@@ -92,20 +92,45 @@ const ImageUploadSection = ({
   // Start camera capture
   const startCamera = async () => {
     try {
-      const constraints = {
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      };
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera access not supported in this browser");
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // First try with environment facing camera (rear camera)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setIsCameraActive(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+          setIsCameraActive(true);
+        }
+      } catch (envError) {
+        console.warn(
+          "Could not access environment camera, trying user camera",
+          envError,
+        );
+
+        // Fallback to user facing camera (front camera)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+          setIsCameraActive(true);
+        }
       }
     } catch (err) {
       console.error("Error accessing camera:", err);

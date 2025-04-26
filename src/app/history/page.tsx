@@ -40,7 +40,13 @@ export default function HistoryPage() {
       try {
         setIsLoading(true);
         const historyData = await getDiagnosisHistory();
-        setHistory(historyData);
+        
+        // Sort by timestamp (newest first)
+        const sortedHistory = [...historyData].sort((a, b) => {
+          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        });
+        
+        setHistory(sortedHistory);
       } catch (err) {
         console.error("Error loading history:", err);
         setError("Failed to load diagnosis history");
@@ -50,7 +56,7 @@ export default function HistoryPage() {
     };
 
     loadHistory();
-  }, []);
+  }, [];
 
   const handleDelete = async (id: string) => {
     try {

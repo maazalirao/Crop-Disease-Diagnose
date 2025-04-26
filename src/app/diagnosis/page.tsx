@@ -33,6 +33,7 @@ export default function DiagnosisPage() {
         <DiagnosisPageClient />
       </div>
     </div>
+    </div>
   );
 }
 

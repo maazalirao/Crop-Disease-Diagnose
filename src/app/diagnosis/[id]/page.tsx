@@ -129,5 +129,6 @@ export default function DiagnosisDetailPage() {
         />
       </div>
     </div>
+    </div>
   );
 }

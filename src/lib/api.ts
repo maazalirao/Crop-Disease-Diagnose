@@ -253,12 +253,20 @@ export async function deleteDiagnosisFromHistory(id: string): Promise<void> {
     if (error) throw error;
 
     // Delete the image from storage if it exists
-    if (diagnosis?.image_path) {
-      const imagePath = diagnosis.image_path.split("/").pop();
-      if (imagePath) {
-        await supabase.storage
-          .from("plant-images")
-          .remove([`plant-images/${imagePath}`]);
+    if (
+      diagnosis?.image_path &&
+      !diagnosis.image_path.includes("unsplash.com")
+    ) {
+      try {
+        const url = new URL(diagnosis.image_path);
+        const pathParts = url.pathname.split("/");
+        const filename = pathParts[pathParts.length - 1];
+
+        if (filename) {
+          await supabase.storage.from("plant-images").remove([filename]);
+        }
+      } catch (err) {
+        console.error("Error parsing image URL for deletion:", err);
       }
     }
   } catch (error) {
