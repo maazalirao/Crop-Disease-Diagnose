@@ -9,8 +9,9 @@ import { useParams } from "next/navigation";
 import { getDiagnosisById, submitDiagnosisFeedback } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DiagnosisResult as DiagnosisResultType } from "@/lib/api";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
-export default function DiagnosisDetailPage() {
+function DiagnosisDetailContent() {
   const params = useParams();
   const id = params.id as string;
   const [diagnosis, setDiagnosis] = useState<DiagnosisResultType | null>(null);
@@ -129,5 +130,13 @@ export default function DiagnosisDetailPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function DiagnosisDetailPage() {
+  return (
+    <ErrorBoundary>
+      <DiagnosisDetailContent />
+    </ErrorBoundary>
   );
 }

@@ -3,6 +3,8 @@
  */
 import { supabase } from "./supabase";
 import { processImageWithModel, getDiseaseInfo } from "./ml-model";
+import { processImageForPrediction } from "./tensorflow-model";
+import { processImageFileInWorker } from "./worker-client";
 
 // Browser-compatible UUID generator function
 const uuidv4 = () => {
@@ -100,8 +102,8 @@ export async function analyzePlantImage(image: File): Promise<DiagnosisResult> {
     // Upload image to Supabase storage
     const imageUrl = await uploadImage(image);
 
-    // Process the image with our ML model
-    const modelResult = await processImageWithModel(image);
+    // Process the image with our TensorFlow.js model via web worker
+    const modelResult = await processImageFileInWorker(image);
 
     // Get detailed information about the detected disease
     const diseaseInfo = getDiseaseInfo(modelResult.diseaseId);

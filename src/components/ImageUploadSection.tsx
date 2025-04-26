@@ -34,6 +34,8 @@ const ImageUploadSection = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [loadingState, setLoadingState] = useState<string>('idle');
+  const [loadingProgress, setLoadingProgress] = useState<number>(0);
 
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -241,16 +243,62 @@ const ImageUploadSection = ({
     setActiveTab("upload");
   };
 
-  // Submit image for processing
+  // Submit image for diagnosis
   const submitImage = async () => {
-    if (!selectedImage) return;
+    if (!selectedImage || isProcessing) return;
 
     try {
+      setLoadingState('preparing');
+      setLoadingProgress(10);
+      
+      // Artificial delay to show loading state progress
+      setTimeout(() => {
+        setLoadingState('processing');
+        setLoadingProgress(30);
+      }, 500);
+      
+      // Processing progress simulation
+      const progressInterval = setInterval(() => {
+        setLoadingProgress((prev) => {
+          const next = prev + Math.floor(Math.random() * 10);
+          return next > 90 ? 90 : next;
+        });
+      }, 700);
+      
+      // Actual image submission
       await onImageSubmit(selectedImage);
+      
+      // Clean up
+      clearInterval(progressInterval);
+      setLoadingState('complete');
+      setLoadingProgress(100);
     } catch (err) {
-      setError("Failed to process image. Please try again.");
-      console.error(err);
+      setError("Error submitting image for diagnosis. Please try again.");
+      setLoadingState('error');
+      console.error("Image submission error:", err);
     }
+  };
+
+  // Customized loader component with progress
+  const renderLoader = () => {
+    if (!isProcessing) return null;
+    
+    return (
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="w-full max-w-md bg-muted h-2 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-300"
+            style={{ width: `${loadingProgress}%` }}
+          ></div>
+        </div>
+        <div className="mt-2 text-sm text-muted-foreground">
+          {loadingState === 'preparing' && 'Preparing image...'}
+          {loadingState === 'processing' && 'Running plant disease detection model...'}
+          {loadingState === 'complete' && 'Analysis complete!'}
+          {loadingState === 'error' && 'Error processing image.'}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -364,6 +412,9 @@ const ImageUploadSection = ({
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Display the loader with progress */}
+        {renderLoader()}
       </CardContent>
 
       <CardFooter className="flex justify-center border-t pt-6">
