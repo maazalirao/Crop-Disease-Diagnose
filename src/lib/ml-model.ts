@@ -593,3 +593,31 @@ export function getDiseaseInfo(diseaseId: string): {
     productRecommendations: baseDiseaseInfo.productRecommendations,
   };
 }
+
+/**
+ * Returns information about all diseases in the database
+ */
+export function getAllDiseaseInfo() {
+  const result = {};
+  
+  // Combine disease class information with detailed disease info
+  DISEASE_CLASSES.forEach(diseaseClass => {
+    const id = diseaseClass.id;
+    
+    // Skip "healthy" as it's not a disease
+    if (id === "healthy") return;
+    
+    if (DISEASE_INFO[id]) {
+      result[id] = {
+        ...DISEASE_INFO[id],
+        name: diseaseClass.name,
+        plantType: diseaseClass.plantType,
+        category: 'Fungal', // Default category if not specified
+        severity: 'Medium', // Default severity if not specified
+        imageUrl: DISEASE_INFO[id].productRecommendations?.[0]?.imageUrl,
+      };
+    }
+  });
+  
+  return result;
+}

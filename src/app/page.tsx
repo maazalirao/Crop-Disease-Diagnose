@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Upload,
-  Camera,
   Database,
   History,
   ArrowRight,
@@ -23,8 +21,21 @@ import {
   Shield,
   Microscope,
 } from "lucide-react";
-import ImageUploadSection from "@/components/ImageUploadSection";
+import dynamic from "next/dynamic";
 import { analyzePlantImage } from "@/lib/api";
+
+// Dynamically import the ImageUploadSection to improve initial load time
+const ImageUploadSection = dynamic(
+  () => import("@/components/ImageUploadSection"),
+  {
+    loading: () => (
+      <div className="w-full h-[400px] bg-card rounded-lg animate-pulse flex items-center justify-center">
+        <p className="text-muted-foreground">Loading upload section...</p>
+      </div>
+    ),
+    ssr: false, // Disable server-side rendering for camera functionality
+  }
+);
 
 export default function Home() {
   const router = useRouter();
@@ -113,10 +124,16 @@ export default function Home() {
               </p>
             </div>
 
-            <ImageUploadSection
-              onImageSubmit={handleImageSubmit}
-              isProcessing={isProcessing}
-            />
+            <Suspense fallback={
+              <div className="w-full h-[400px] bg-card rounded-lg animate-pulse flex items-center justify-center">
+                <p className="text-muted-foreground">Loading upload section...</p>
+              </div>
+            }>
+              <ImageUploadSection
+                onImageSubmit={handleImageSubmit}
+                isProcessing={isProcessing}
+              />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -226,14 +243,6 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button
-                size="lg"
-                className="gap-2"
-                onClick={scrollToUploadSection}
-              >
-                <Microscope className="h-4 w-4" />
-                Diagnose Now
-              </Button>
               <Link href="/history">
                 <Button size="lg" variant="outline" className="gap-2">
                   <History className="h-4 w-4" />

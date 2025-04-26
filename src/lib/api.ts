@@ -153,6 +153,12 @@ async function saveDiagnosisToDatabase(result: DiagnosisResult): Promise<void> {
     return;
   }
   
+  // Only save diagnoses with high confidence (above 75%)
+  if (result.confidenceScore < 75) {
+    console.log('Skipping database save: Confidence score too low', result.confidenceScore);
+    return;
+  }
+  
   try {
     // Insert into diagnoses table
     const { error: diagnosisError } = await supabase.from("diagnoses").insert({

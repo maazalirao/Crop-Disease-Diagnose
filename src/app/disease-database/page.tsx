@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { Search, Filter, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,108 +22,73 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
+import { getAllDiseaseInfo } from "@/lib/ml-model";
 
 export default function DiseaseDatabasePage() {
-  // Mock data for diseases
-  const diseases = [
-    {
-      id: 1,
-      name: "Late Blight",
-      plantType: "Tomato",
-      category: "Fungal",
-      severity: "High",
-      symptoms: [
-        "Dark brown spots on leaves",
-        "White fuzzy growth on undersides",
-        "Rotting fruit",
-      ],
-      description:
-        "Late blight is a destructive disease affecting tomatoes and potatoes. It spreads rapidly in cool, wet conditions and can destroy crops within days if not treated.",
-      treatments: [
-        "Apply fungicide preventatively",
-        "Remove and destroy infected plants",
-        "Improve air circulation",
-      ],
-      image:
-        "https://images.unsplash.com/photo-1598512752271-33f913a5af13?w=600&q=80",
-    },
-    {
-      id: 2,
-      name: "Powdery Mildew",
-      plantType: "Cucumber",
-      category: "Fungal",
-      severity: "Medium",
-      symptoms: [
-        "White powdery spots on leaves",
-        "Yellowing leaves",
-        "Stunted growth",
-      ],
-      description:
-        "Powdery mildew is a fungal disease that affects a wide range of plants. It appears as white powdery spots on leaves and stems, and can reduce yield and quality.",
-      treatments: [
-        "Apply sulfur-based fungicide",
-        "Remove infected parts",
-        "Increase spacing between plants",
-      ],
-      image:
-        "https://images.unsplash.com/photo-1591857177580-dc82b9ac4e1e?w=600&q=80",
-    },
-    {
-      id: 3,
-      name: "Bacterial Leaf Spot",
-      plantType: "Pepper",
-      category: "Bacterial",
-      severity: "Medium",
-      symptoms: [
-        "Dark, water-soaked spots on leaves",
-        "Yellow halos around spots",
-        "Defoliation",
-      ],
-      description:
-        "Bacterial leaf spot is caused by various species of bacteria. It creates water-soaked spots on leaves that may turn yellow, brown, or black. Severe infections can cause defoliation.",
-      treatments: [
-        "Apply copper-based bactericide",
-        "Rotate crops",
-        "Avoid overhead irrigation",
-      ],
-      image:
-        "https://images.unsplash.com/photo-1587334207809-35122c523a32?w=600&q=80",
-    },
-    {
-      id: 4,
-      name: "Mosaic Virus",
-      plantType: "Squash",
-      category: "Viral",
-      severity: "High",
-      symptoms: [
-        "Mottled green/yellow pattern on leaves",
-        "Stunted growth",
-        "Deformed fruits",
-      ],
-      description:
-        "Mosaic virus causes mottled patterns on leaves and can stunt plant growth. It is spread by aphids and other insects, and there is no cure once a plant is infected.",
-      treatments: [
-        "Remove and destroy infected plants",
-        "Control insect vectors",
-        "Plant resistant varieties",
-      ],
-      image:
-        "https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2?w=600&q=80",
-    },
-  ];
+  const [diseases, setDiseases] = useState<any[]>([]);
+  const [filteredDiseases, setFilteredDiseases] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPlantType, setSelectedPlantType] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Plant types for filter
-  const plantTypes = [
-    "All",
-    "Tomato",
-    "Cucumber",
-    "Pepper",
-    "Squash",
-    "Corn",
-    "Potato",
-  ];
+  // Load disease data from ML model
+  useEffect(() => {
+    const diseaseData = getAllDiseaseInfo();
+    
+    // Transform the data to match the expected format
+    const formattedDiseases = Object.entries(diseaseData).map(([id, info], index) => {
+      return {
+        id: index + 1,
+        diseaseId: id,
+        name: info.name,
+        plantType: info.plantType,
+        category: info.category || "Fungal", // Default to Fungal if not specified
+        severity: info.severity || "Medium", // Default to Medium if not specified
+        symptoms: info.symptoms || [],
+        description: info.description,
+        treatments: info.treatmentOptions?.map(t => t.name) || [],
+        image: info.imageUrl || `https://images.unsplash.com/photo-159851${Math.floor(1000000 + Math.random() * 9000000)}?w=600&q=80`,
+      };
+    });
+    
+    setDiseases(formattedDiseases);
+    setFilteredDiseases(formattedDiseases);
+    setIsLoading(false);
+  }, []);
 
-  // Disease categories for filter
+  // Filter diseases based on search term and filters
+  useEffect(() => {
+    let result = [...diseases];
+    
+    // Apply search filter
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      result = result.filter(
+        disease => 
+          disease.name.toLowerCase().includes(lowerSearch) || 
+          disease.description.toLowerCase().includes(lowerSearch) ||
+          disease.symptoms.some((s: string) => s.toLowerCase().includes(lowerSearch))
+      );
+    }
+    
+    // Apply plant type filter
+    if (selectedPlantType !== "All") {
+      result = result.filter(disease => disease.plantType === selectedPlantType);
+    }
+    
+    // Apply category filter
+    if (selectedCategory !== "All") {
+      result = result.filter(disease => disease.category === selectedCategory);
+    }
+    
+    setFilteredDiseases(result);
+  }, [searchTerm, selectedPlantType, selectedCategory, diseases]);
+
+  // Collect unique plant types from the data
+  const plantTypes = ["All", ...new Set(diseases.map(d => d.plantType))];
+
+  // Disease categories
   const categories = [
     "All",
     "Fungal",
@@ -130,6 +97,21 @@ export default function DiseaseDatabasePage() {
     "Pest",
     "Nutrient Deficiency",
   ];
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8 px-4 bg-background">
+        <h1 className="text-3xl font-bold mb-6">Plant Disease Database</h1>
+        <div className="flex justify-center py-12">
+          <div className="animate-pulse space-y-4">
+            <div className="h-12 w-64 bg-muted rounded"></div>
+            <div className="h-32 w-full max-w-md bg-muted rounded"></div>
+            <div className="h-32 w-full max-w-md bg-muted rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 bg-background">
@@ -149,10 +131,15 @@ export default function DiseaseDatabasePage() {
           <Input
             placeholder="Search diseases by name or symptom"
             className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
-          <Select defaultValue="All">
+          <Select 
+            value={selectedPlantType} 
+            onValueChange={setSelectedPlantType}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Plant Type" />
             </SelectTrigger>
@@ -165,7 +152,10 @@ export default function DiseaseDatabasePage() {
             </SelectContent>
           </Select>
 
-          <Select defaultValue="All">
+          <Select 
+            value={selectedCategory} 
+            onValueChange={setSelectedCategory}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Disease Category" />
             </SelectTrigger>
@@ -177,105 +167,62 @@ export default function DiseaseDatabasePage() {
               ))}
             </SelectContent>
           </Select>
-
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter size={16} />
-            More Filters
-          </Button>
         </div>
       </div>
 
+      {/* No Results */}
+      {filteredDiseases.length === 0 && (
+        <Card className="text-center py-12 mb-8">
+          <CardContent>
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <Info className="h-12 w-12 text-muted-foreground" />
+              <h3 className="text-xl font-medium">No diseases found</h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search or filters to find what you're looking for.
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedPlantType("All");
+                  setSelectedCategory("All");
+                }}
+              >
+                Reset Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* View Options */}
-      <Tabs defaultValue="grid" className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Disease Catalog</h2>
-          <TabsList>
-            <TabsTrigger value="grid">Grid View</TabsTrigger>
-            <TabsTrigger value="list">List View</TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Grid View */}
-        <TabsContent value="grid" className="mt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {diseases.map((disease) => (
-              <Card key={disease.id} className="overflow-hidden">
-                <div className="h-48 overflow-hidden">
-                  <img
-                    src={disease.image}
-                    alt={disease.name}
-                    className="w-full h-full object-cover transition-transform hover:scale-105"
-                  />
-                </div>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle>{disease.name}</CardTitle>
-                    <Badge
-                      variant={
-                        disease.severity === "High"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {disease.severity} Severity
-                    </Badge>
-                  </div>
-                  <CardDescription className="flex items-center gap-2">
-                    <span>{disease.plantType}</span>
-                    <span>•</span>
-                    <span>{disease.category}</span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  <p className="text-sm line-clamp-3">{disease.description}</p>
-                  <div className="mt-3">
-                    <h4 className="text-sm font-medium mb-1">
-                      Common Symptoms:
-                    </h4>
-                    <div className="flex flex-wrap gap-1">
-                      {disease.symptoms.slice(0, 2).map((symptom, index) => (
-                        <Badge
-                          key={index}
-                          variant="outline"
-                          className="text-xs"
-                        >
-                          {symptom}
-                        </Badge>
-                      ))}
-                      {disease.symptoms.length > 2 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{disease.symptoms.length - 2} more
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button variant="outline" className="w-full">
-                    View Details
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+      {filteredDiseases.length > 0 && (
+        <Tabs defaultValue="grid" className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">
+              Disease Catalog ({filteredDiseases.length} results)
+            </h2>
+            <TabsList>
+              <TabsTrigger value="grid">Grid View</TabsTrigger>
+              <TabsTrigger value="list">List View</TabsTrigger>
+            </TabsList>
           </div>
-        </TabsContent>
 
-        {/* List View */}
-        <TabsContent value="list" className="mt-0">
-          <div className="space-y-4">
-            {diseases.map((disease) => (
-              <Card key={disease.id}>
-                <div className="flex flex-col md:flex-row">
-                  <div className="md:w-1/4 h-48 md:h-auto">
+          {/* Grid View */}
+          <TabsContent value="grid" className="mt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredDiseases.map((disease) => (
+                <Card key={disease.id} className="overflow-hidden">
+                  <div className="h-48 overflow-hidden">
                     <img
                       src={disease.image}
                       alt={disease.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform hover:scale-105"
                     />
                   </div>
-                  <div className="flex-1 p-6">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-xl font-bold">{disease.name}</h3>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <CardTitle>{disease.name}</CardTitle>
                       <Badge
                         variant={
                           disease.severity === "High"
@@ -286,61 +233,118 @@ export default function DiseaseDatabasePage() {
                         {disease.severity} Severity
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                    <CardDescription className="flex items-center gap-2">
                       <span>{disease.plantType}</span>
                       <span>•</span>
                       <span>{disease.category}</span>
-                    </div>
-                    <p className="mb-4">{disease.description}</p>
-                    <div className="mb-4">
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-2">
+                    <p className="text-sm line-clamp-3">{disease.description}</p>
+                    <div className="mt-3">
                       <h4 className="text-sm font-medium mb-1">
                         Common Symptoms:
                       </h4>
                       <div className="flex flex-wrap gap-1">
-                        {disease.symptoms.map((symptom, index) => (
-                          <Badge key={index} variant="outline">
+                        {disease.symptoms.slice(0, 2).map((symptom, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="text-xs"
+                          >
                             {symptom}
                           </Badge>
                         ))}
+                        {disease.symptoms.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{disease.symptoms.length - 2} more
+                          </Badge>
+                        )}
                       </div>
                     </div>
-                    <Button>View Full Details</Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+                  </CardContent>
+                  <CardFooter>
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link href={`/disease-detail/${disease.diseaseId}`}>
+                        View Details
+                      </Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
 
-      {/* Information Section */}
-      <Card className="mt-12 bg-muted/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info size={20} />
-            About Plant Diseases
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4">
-            Plant diseases can significantly impact crop yield and quality.
-            Early detection and proper treatment are essential for effective
-            management.
-          </p>
-          <p>
-            This database provides information on common plant diseases, their
-            symptoms, and recommended treatments. If you've identified a disease
-            in your crops, use our
-            <Link href="/diagnosis">
-              <Button variant="link" className="px-1 py-0">
-                Disease Detection Tool
-              </Button>
-            </Link>
-            for a more accurate diagnosis and personalized treatment
-            recommendations.
-          </p>
-        </CardContent>
-      </Card>
+          {/* List View */}
+          <TabsContent value="list" className="mt-0">
+            <div className="space-y-4">
+              {filteredDiseases.map((disease) => (
+                <Card key={disease.id}>
+                  <div className="flex flex-col md:flex-row">
+                    <div className="md:w-1/4 h-40 md:h-auto">
+                      <img
+                        src={disease.image}
+                        alt={disease.name}
+                        className="w-full h-full object-cover rounded-t-lg md:rounded-l-lg md:rounded-t-none"
+                      />
+                    </div>
+                    <div className="flex-1 p-6">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="text-xl font-bold">{disease.name}</h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{disease.plantType}</span>
+                            <span>•</span>
+                            <span>{disease.category}</span>
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            disease.severity === "High"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {disease.severity} Severity
+                        </Badge>
+                      </div>
+                      <p className="line-clamp-2 my-3">{disease.description}</p>
+                      <div className="flex justify-between items-end">
+                        <div>
+                          <h4 className="text-sm font-medium mb-1">
+                            Top Symptoms:
+                          </h4>
+                          <div className="flex flex-wrap gap-1">
+                            {disease.symptoms.slice(0, 3).map((symptom, index) => (
+                              <Badge
+                                key={index}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {symptom}
+                              </Badge>
+                            ))}
+                            {disease.symptoms.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{disease.symptoms.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button variant="outline" asChild>
+                          <Link href={`/disease-detail/${disease.diseaseId}`}>
+                            View Details
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
